@@ -1,0 +1,133 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SignalR Chat App</title>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+    <style>
+        .list-group-item {
+            background-color: #f8f9fa;
+            margin-bottom: 5px;
+            border: 1px solid #dee2e6;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .form-control {
+            border: 1px solid #ced4da;
+            border-radius: .25rem;
+        }
+
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+
+        .list-group-item:first-child {
+            border: 1px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row mt-3">
+            <div class="col-md-2">User</div>
+            <div class="col-md-4"><input type="text" id="userInput" class="form-control"></div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-2">Message</div>
+            <div class="col-md-4"><input type="text" id="messageInput" class="form-control"></div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <button type="button" id="sendButton" class="btn btn-primary">
+                    <i class="fa fa-paper-plane"></i> Send Message
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <hr class="mt-5">
+
+    <div class="container mt-3">
+        <div class="row">
+            <div class="col-md-6">
+                <ul id="messagesList" class="list-group" data-bind="foreach: uniqueMessages">
+
+                    <li class="list-group-item" data-bind="text: user + ' says ' + message"></li>
+                </ul>
+
+                <a href="Home/ShowConnectedUsers" class="btn btn-primary">
+                    <i class="fa fa-users"></i> Online Users List
+                </a>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- SignalR and Knockout.js scripts -->
+    <script src="~/js/signalr/dist/browser/signalr.js"></script>
+    <script src="~/js/clientHub.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.5.1/knockout-latest.js"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            var connection = new signalR.HubConnectionBuilder().withUrl("/ConnectedHub").build();
+
+            var viewModel = {
+                messages: ko.observableArray([]),
+                uniqueMessages: ko.observableArray([])
+            };
+
+            ko.applyBindings(viewModel);
+
+            connection.on("ReceiveMessage", function (user, message) {
+
+                if (message.trim() !== '') {
+                    var isDuplicate = viewModel.messages().some(function (item) {
+                        return item.user === user && item.message === message;
+                    });
+                    if (!isDuplicate) {
+                        viewModel.messages.push({ user: user, message: message });
+                        updateUniqueMessages();
+                    }
+                }
+            });
+
+            connection.start().then(function () {
+                document.getElementById("sendButton").disabled = false;
+            }).catch(function (err) {
+                console.error(err.toString());
+            });
+
+            document.getElementById("sendButton").addEventListener("click", function (event) {
+                var user = document.getElementById("userInput").value;
+                var message = document.getElementById("messageInput").value;
+                connection.invoke("SendMessage", user, message).catch(function (err) {
+                    console.error(err.toString());
+                });
+                event.preventDefault();
+            });
+
+            function updateUniqueMessages() {
+                var uniqueMessages = [];
+                viewModel.messages().forEach(function (item) {
+                    var isDuplicate = uniqueMessages.some(function (uniqueItem) {
+                        return uniqueItem.user === item.user && uniqueItem.message === item.message;
+                    });
+                    if (!isDuplicate) {
+                        uniqueMessages.push(item);
+                    }
+                });
+                viewModel.uniqueMessages(uniqueMessages);
+            }
+        });
+    </script>
+</body>
+</html>
